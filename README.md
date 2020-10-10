@@ -114,3 +114,31 @@ Enter the street of the intersection (ie. Avenue F & 3rd st, enter 3)
 ```
 14
 ```
+
+## Task 5 - Where Has the Drone Been? - (Reverse Engineering, Cryptography) (1300 points)
+### Description
+A rescue team was deployed to the criminal safehouse identified by your efforts. The team encountered resistance but was able to seize the location without causalities. Unfortunately, all of the kidnappers escaped and the hostage was not found. The team did find two important pieces of technology left behind: the journalist's Stepinator device, and a damaged surveillance drone. An analyst retrieved some encrypted logs as well as part of the drone's GPS software. Your goal for this task is to identify the location of the criminal organization's base of operations.
+### Solution
+crypto/aes
+*cipher.cbc
+main.generate_key
+main.generate_iv
+main.setup_cipher
+main.open_log_file
+main.start_logging
+/usr/lib/go/src/crypto/aes/block.go
+/usr/lib/go/src/crypto/cipher/gcm.go
+/usr/lib/go/src/crypto/cipher/xor_generic.go
+/usr/lib/go/src/crypto/internal/subtle/aliasing.go
+/usr/lib/go/src/crypto/cipher/cipher.go
+/usr/lib/go/src/crypto/cipher/cbc.go
+!!!   IV REQUIRES LONGITUDE COORDINATE   !!!!!!   KEY REQUIRES LATITUDE COORDINATE   !!!
+!!!   EXPECTED TO FIND NMEA $GNGGA HEADER   !!!
+musl:arm64
+libgps-dev:arm64
+qemu-user-static
+sudo dpkg --add-architecture arm64 && sudo apt update && sudo apt install qemu-user-static musl:arm64 libgps-dev:arm64 -y
+### Answers
+Enter the approximate location of the organization's base in the format: ##°##'N ##°##'W
+```
+```
