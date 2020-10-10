@@ -99,3 +99,15 @@ Enter the password for the Stepinator account
 ```
 TealKeanna09251025
 ```
+
+## Task 4 - Follow That Car! - (Graph Algorithms, Computer Science) (500 points)
+### Description
+By using the credentials in the decrypted file, we were able to download the journalist's accelerometer data from their Stepinator device from the time of the kidnapping. Local officials have provided us with a city map and traffic light schedule. Using these along with the journalist's accelerometer data, find the closest intersection to where the kidnappers took their hostage.
+### Solution
+### Answers
+Enter the avenue of the intersection. (ie. Avenue F & 3rd st, enter F)
+```
+```
+Enter the street of the intersection (ie. Avenue F & 3rd st, enter 3)
+```
+```
