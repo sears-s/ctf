@@ -243,9 +243,92 @@ Enter the approximate location of the organization's base in the format: ##°##'
 05°34'N 25°40'W
 ```
 
+## Task 6 - Proof of Life - (Signals Analysis) (1300 points)
+
+### Description
+
+Satellite imaging of the location you identified shows a camouflaged building within the jungle. The recon team spotted multiple armed individuals as well as drones being used for surveillance. Due to this heightened security presence, the team was unable to determine whether or not the journalist is being held inside the compound. Leadership is reluctant to raid the compound without proof that the journalist is there.
+
+The recon team has brought back a signal collected near the compound. They suspect it is a security camera video feed, likely encoded with a systematic Hamming code. The code may be extended and/or padded as well. We've used BPSK demodulation on the raw signal to generate a sequence of half precision floating point values. The floats are stored as IEEE 754 binary16 values in little-endian byte order within the attached file. Each float is a sample of the signal with 1 sample per encoded bit. You should be able to interpret this to recover the encoded bit stream, then determine the Hamming code used. Your goal for this task is to help us reproduce the original video to provide proof that the journalist is alive and being held at this compound.
+
+### Solution
+
+Python is used to convert `signal.ham` to a list of bits. `struct.iter_unpack` is used with a format string of `<e`. `<` is for little-endian and `e` is for half precision float (2 bytes).
+
+To determine the length of the codeword, the percentage of ones in the data is counted for each bit position in different codeword lengths. Normal data should have a percentage close to 0.5. However, the last bit in a 17 bit codeword is almost always 0:
+
+```
+codeword len = 17, bit_pos = 16, ones % = 0.0
+```
+
+Therefore, the codeword must have a length of 17 bits with the last bit being a padding of 0.
+
+The percentages of ones for every bit position with this codeword length are found:
+
+```
+bit pos = 0, ones % = 54.26589390788833
+bit pos = 1, ones % = 54.39030217227801
+bit pos = 2, ones % = 54.38003804804672
+bit pos = 3, ones % = 54.37048179445206
+bit pos = 4, ones % = 54.42675751006504
+bit pos = 5, ones % = 54.52143520771578
+bit pos = 6, ones % = 54.37048179445206
+bit pos = 7, ones % = 54.51488740432686
+bit pos = 8, ones % = 54.41684732115206
+bit pos = 9, ones % = 54.372605406361984
+bit pos = 10, ones % = 54.353846834490994
+bit pos = 11, ones % = 50.58195814714861
+bit pos = 12, ones % = 51.80144228642216
+bit pos = 13, ones % = 51.3868070610096
+bit pos = 14, ones % = 49.69464230411892
+bit pos = 15, ones % = 49.384241029951774
+bit pos = 16, ones % = 0.12263858779807989
+```
+
+The description states that this is a systematic hamming code. Systematic means that the first bits of the codeword are data bits, and the codeword ends in parity check bits. This data shows that bits 0 through 10 are consistently 54% ones, while bits 11 through 15 are lower and have less consistent values. It can be assumed that bits 0 through 10 are the data bits, bits 11 through 15 are the parity check bits, and bit 16 is the 0 padding bit.
+
+To determine the parity check matrix, each possible combination of data bits for each parity check bit is iterated through. The parity of each combination of data bits is compared to the parity check bit. Combinations with nearly 100% correct are found:
+
+```
+check bit pos 11, # data bits = 7, data bits = (1, 2, 3, 4, 5, 9, 10), % correct 100.0
+check bit pos 12, # data bits = 7, data bits = (0, 3, 4, 6, 7, 9, 10), % correct 100.0
+check bit pos 13, # data bits = 7, data bits = (0, 1, 2, 3, 4, 6, 8), % correct 100.0
+check bit pos 14, # data bits = 7, data bits = (1, 4, 5, 6, 7, 8, 10), % correct 100.0
+check bit pos 15, # data bits = 7, data bits = (0, 2, 4, 5, 7, 8, 9), % correct 100.0
+```
+
+This shows the data bits each parity check bit is for. The parity check matrix can then be constructed:
+
+```
+[0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0]
+[1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0]
+[1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0]
+[0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0]
+[1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1]
+```
+
+Each row represents a parity check and each column represents a bit position in the codeword. A bit is set for the data bits being checked and the parity check bit.
+
+To decode the original bits, they are separated into codewords with the 17th bit being removed because it is padding. The syndrome is calculated by multiplying the parity check matrix and the codeword modulus 2. If the syndrome is non-zero, the column in the parity check matrix with equal bits is found. The index of this column is equal to the bit position in the codeword that has its bit flipped. The first 11 bytes of the codeword (the data bytes) are appended to the decoded bits, which are written to a file.
+
+The output file appears to be a video file:
+
+```
+$ file output.avi
+output.avi: RIFF (little-endian) data, AVI, 640 x 360, ~30 fps, video: FFMpeg MPEG-4
+```
+
+The video has an RFC3339 timestamp in the top left corner.
+
+### Answers
+
+Enter the parity check matrix used to decode the data stream. Enter in JSON format, as an array of arrays ie. a 3x2 matrix, on a single line (optional), might be: [[1,0],[0,0],[1,1]]
+
 ```
 [[0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0],[1,0,0,1,1,0,1,1,0,1,1,0,1,0,0,0],[1,1,1,1,1,0,1,0,1,0,0,0,0,1,0,0],[0,1,0,0,1,1,1,1,1,0,1,0,0,0,1,0],[1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,1]]
 ```
+
+Enter the RFC3339 timestamp in the surveillance video stream that proves the hostage was alive recently inside the compound.
 
 ```
 2020-10-01T09:15:53Z
