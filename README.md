@@ -333,3 +333,65 @@ Enter the RFC3339 timestamp in the surveillance video stream that proves the hos
 ```
 2020-10-01T09:15:53Z
 ```
+
+## Task 7 - Plan for Rescue - (Reverse Engineering) (500 points)
+
+### Description
+
+With proof the journalist is alive and held inside the compound, the team will make a plan to infiltrate without being discovered. But, they see a surveillance drone and expect more are in the area. It is too risky without knowing how many there are and where they might be. To help the team avoid detection, we need you to enumerate all of the drones around the compound. Luckily we've made some discoveries at the safehouse which should help you. You can find the details in the attached README file. Get to work and give us the list of drone hostnames you discover. This will tell us how many to look for, and hopefully indicate where they might be.
+
+### Solution
+
+### Answers
+
+Enter the list of hostnames (case sensitive, one per line)
+
+```
+
+```
+
+## Task 8 - Rescue & Escape (Part 1) - (Reverse Engineering, Network Protocol Analysis) (1700 points)
+
+### Description
+
+The team is ready to go in to rescue the hostage. With your help they will be able to escape safely. There is no doubt the team will be detected once they find the hostage, so they will need help reaching the evacuation site. We need you to destroy all of the drones. Physically crashing the drone(s) at just the right moment will both disable any surveillance and distract the guards. This should give the team just enough time for escape to the evacuation site.
+
+This will complicated...
+
+We've done some more analysis looking at the strings and symbols in the drone binaries, and our technical team thinks the best approach is to send a 'restart' or 'poweroff' command to the power module in each of the drones. If the command is executed, the drone will lose power and drop out of the sky (and likely be destroyed).
+
+But, it looks like the commands may not be executed when the drone is in-flight. Solving that will be the next step, but for now, focus on figuring out how to send a command to the power module, even if the command is rejected because the drone is in flight.
+
+In this case, it would be best if you can determine a single message which can be sent to the controller so it can be be broadcast to all of the drones at exactly the same time. We dont know what other monitoring or safety mechanisms are in place if a drone malfunction is detected, and we cannot affort to disable only some of the drones.
+
+Once you've determined the buffer that needs to be sent, upload it here We will use the './hello.py send_packet ' functionality to attempt to send the message to verify it
+
+### Solution
+
+### Answers
+
+Upload the packet (not frame) contents we should send when we're ready to disable the drones. (It should not have the 2 byte length prefix)
+
+```
+
+```
+
+## Task 9 - Rescue & Escape (Part 2) - (Reverse Engineering, Cryptography, Vulnerability Analysis) (2500 points)
+
+### Description
+
+Now that you have a working power command, you need to make changes to the drones so the command will be accepted. This string in the power module gives us some hope: 'New Flight Monitor Available. Allowing forced power command'
+
+Find a vulnerability in the updater module that allows you to update the flightmonitor to a new version. Exploit the vulnerability on all of the drones to prepare them. Then, send your power command validated in the previous task. Once all the drones are unresponsive, let us know by submitting the word 'READY' in the field below. We will confirm and then send in the team to rescue the hostage!
+
+Additional Notes: This will require a better understanding of the netsvc module than you needed for the power command. The update process looks like it requires a long running 'session' and the netsvc may have some protection mechanisms to guard against bruteforce attempts which you will need to abide by.
+
+### Solution
+
+### Answers
+
+Let us know when you are 'READY'
+
+```
+
+```
