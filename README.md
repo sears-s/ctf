@@ -202,8 +202,10 @@ The logs must be encrypted using AES CBC, the IV must be derived from a latitude
 $GNGGA,hhmmss.ss,llll.lll,a,yyyyy.yyy,a,x,uu,v.v,w.w,M,x.x,M,,zzzz*hh<CR><LF>
 ```
 
-Attempts to analyze the binary dynamically failed because it is compiled for ARM. Even if emulated, it relies on other shared libraries and reading from the GPS device. Thus, Ghidra was used for further static analysis. It should be noted that, while ARM typically follows a calling convention that uses registers for arguments and return values, the Go calling convention uses the stack to pass these values between functions (https://dr-knz.net/go-calling-convention-x86-64.html). For example, for a function with two arguments and one return value, the first argument would be at `SP + 0x8`, the second at `SP + 0x10`, and the return value at `SP + 0x18`. Ghidra does not account for this calling convention, so function signatures were altered to assist with decompilation. Also in Go, strings are stored as a struct with an 8-byte pointer to the characters and an 8-byte integer for its length. Checking the box `Custom Storage` for the function signature allows Ghidra to use the stack for arguments and the return value. Here is an example:\
-![](images/task5_ghidra.png)\
+Attempts to analyze the binary dynamically failed because it is compiled for ARM. Even if emulated, it relies on other shared libraries and reading from the GPS device. Thus, Ghidra was used for further static analysis. It should be noted that, while ARM typically follows a calling convention that uses registers for arguments and return values, the Go calling convention uses the stack to pass these values between functions (https://dr-knz.net/go-calling-convention-x86-64.html). For example, for a function with two arguments and one return value, the first argument would be at `SP + 0x8`, the second at `SP + 0x10`, and the return value at `SP + 0x18`. Ghidra does not account for this calling convention, so function signatures were altered to assist with decompilation. Also in Go, strings are stored as a struct with an 8-byte pointer to the characters and an 8-byte integer for its length. Checking the box `Custom Storage` for the function signature allows Ghidra to use the stack for arguments and the return value. Here is an example:
+
+![](images/task5_ghidra.png)
+
 After altering function signatures and walking through the assembly instructions, the following pseudocode for `main.setup_cipher` was produced:
 
 ```python
@@ -342,12 +344,48 @@ With proof the journalist is alive and held inside the compound, the team will m
 
 ### Solution
 
+To determine the command that must be sent to the controller, the binary the controller is running must be reverse engineered. From `docker-compose.yml`, the contoller seems to be running the `router` binary:
+
+```yaml
+entrypoint: "/bin/sh -c 'cd / && /opt/router/router 2 9000 `hostname`'"
+```
+
+`/opt/router/router` is a symbolic link to `/var/opt/updater/modules/router/1.0/router`. This binary is loaded into Ghidra. The binary includes debugging information, so function names and some variable names are included. Interesting content can be found in the function `handle_received_frame`:
+
+![](images/task7_ghidra.png)
+
+In the included `hello.py`, the `msg` variable in the packet header was set to 0, which corresponds to a `msgtype` of 0 results in `handle_received_HELLO` being called. It can be assumed that `handle_received_PEERS` will return a list of peers, so the `msgtype` in the header should be set to 1. `hello.py` is modified to make the initial connection using the HELLO message, and then another frame is sent with the `msg` being set to 1. The received packet is parsed for the drone hostnames.
+
+The script must be run over the VPN. First, the configuration file is copied to the Wireguard directory:
+
+```bash
+cp wg3.conf /etc/wireguard
+```
+
+Next, the VPN connection is created:
+
+```bash
+sudo wg-quick up wg3
+```
+
+Running the following command will confirm that the VPN is running:
+
+```bash
+sudo wg show
+```
+
+The output of this command shows that the only allowed IP on the VPN is `10.129.130.1`, so it can be assumed that this is the controller. Running the script with this IP address as the host returns five hostnames.
+
 ### Answers
 
 Enter the list of hostnames (case sensitive, one per line)
 
 ```
-
+compound_NE_02_4803a7ae79d7c612
+compound_NE_01_3c4bc6ac35346d0b
+compound_SE_01_5fb940a3387de4cc
+compound_SW_01_5625e42f6f4f01c4
+compound_NW_01_6f71628b69aa6059
 ```
 
 ## Task 8 - Rescue & Escape (Part 1) - (Reverse Engineering, Network Protocol Analysis) (1700 points)
