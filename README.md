@@ -354,13 +354,29 @@ entrypoint: "/bin/sh -c 'cd / && /opt/router/router 2 9000 `hostname`'"
 
 ![](images/task7_handle_received_frame.png)
 
-In the included `hello.py`, the `msg` variable in the packet header was set to 0, which corresponds to a `msgtype` of 0 results in `handle_received_HELLO` being called. It can be assumed that `handle_received_PEERS` will return a list of peers, so the `msgtype` in the header should be set to 1. `hello.py` is modified to make the initial connection using the HELLO message, and then another frame is sent with the `msg` being set to 1.
+In the included `hello.py`, the `msg` variable in the packet header was set to 0, which corresponds to a `msgtype` of 0 that results in `handle_received_HELLO` being called. It can be assumed that `handle_received_PEERS` will return a list of peers, so the `msgtype` in the header should be set to 1. `hello.py` is modified to make the initial connection using the HELLO message, and then another frame is sent with the `msg` being set to 1.
 
-To parse the response, the data format for nodes must be understood. The included code shows that the format is 2 bytes of unknown, 1 byte for the type, then 32 bytes for the hostname. The `peer_entry_t` type in Ghidra from the same `router` binary shows that the first 2 bytes are the address:
+To fully understand the packet header format (needed for later tasks), the `zeros` variable in the `make_pkt` function must be understood. So far, it is known that the flags are 1 byte, the message type is 1 byte, and the `zeros` variable is 2 bytes. In the `router` binary, the `direct_pkt_from_hdr` function gives clues as to what these 2 bytes are:
+
+![](images/task7_direct_pkt_from_hdr.png)
+
+Based on the error message string, it can be assumed that these two bytes are an offset. Another indication is that this value (`uVar2`) modifies the remaining bytes in the packet content and the next pointer in the packet content. The offset will point to an index in the content where it should start. Therefore, the packet format is as follows:
+
+| Flags  | Message Type | Offset  | Content |
+| :----: | :----------: | :-----: | :-----: |
+| 1 byte |    1 byte    | 2 bytes | n bytes |
+
+To parse the response, the data format for nodes must be understood. Based on analysis of the `router` binary, both a HELLO request and response includes the data for a node in the packet content. The included code shows that the format is 2 bytes of unknown, 1 byte for the type, then 32 bytes for the hostname. The `peer_entry_t` type in Ghidra from the binary shows that the first 2 bytes are the address:
 
 ![](images/task7_peer_entry_t.png)
 
-The script will parse the PEERS response for this data type.
+Therefore, the node data format is as follows:
+
+| Address | Node Type |             Hostname              |
+| :-----: | :-------: | :-------------------------------: |
+| 2 bytes |  1 byte   | 32 bytes (padded with null bytes) |
+
+The script will parse the PEERS response for this data format.
 
 The script must be run over the VPN. First, the configuration file is copied to the Wireguard directory:
 
@@ -383,11 +399,14 @@ sudo wg show
 The output of this command shows that the only allowed IP on the VPN is `10.129.130.1`, so it can be assumed that this is the controller. Running the script with this IP address as the host returns five nodes:
 
 ```
-Hostname = compound_NE_02_4803a7ae79d7c612, Type = 3, Address = 32778
-Hostname = compound_NE_01_3c4bc6ac35346d0b, Type = 3, Address = 32770
-Hostname = compound_SE_01_5fb940a3387de4cc, Type = 3, Address = 32774
-Hostname = compound_SW_01_5625e42f6f4f01c4, Type = 3, Address = 32776
-Hostname = compound_NW_01_6f71628b69aa6059, Type = 3, Address = 32772
+Sending PEERS...
+Receiving PEERS...
+Flags = 1, Type = 1
+Hostname = compound_NE_02_4803a7ae79d7c612, Type = 3, Address = 0x800a
+Hostname = compound_NE_01_3c4bc6ac35346d0b, Type = 3, Address = 0x8002
+Hostname = compound_SE_01_5fb940a3387de4cc, Type = 3, Address = 0x8006
+Hostname = compound_SW_01_5625e42f6f4f01c4, Type = 3, Address = 0x8008
+Hostname = compound_NW_01_6f71628b69aa6059, Type = 3, Address = 0x8004
 ```
 
 ### Answers
