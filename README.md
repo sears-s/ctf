@@ -202,7 +202,7 @@ The logs must be encrypted using AES CBC, the IV must be derived from a latitude
 $GNGGA,hhmmss.ss,llll.lll,a,yyyyy.yyy,a,x,uu,v.v,w.w,M,x.x,M,,zzzz*hh<CR><LF>
 ```
 
-Attempts to analyze the binary dynamically failed because it is compiled for ARM. Even if emulated, it relies on other shared libraries and reading from the GPS device. Thus, Ghidra was used for further static analysis. It should be noted that, while ARM typically follows a calling convention that uses registers for arguments and return values, the Go calling convention uses the stack to pass these values between functions (https://dr-knz.net/go-calling-convention-x86-64.html). For example, for a function with two arguments and one return value, the first argument would be at `SP + 0x8`, the second at `SP + 0x10`, and the return value at `SP + 0x18`. Ghidra does not account for this calling convention, so function signatures were altered to assist with decompilation. Also in Go, strings are stored as a struct with an 8-byte pointer to the characters and an 8-byte integer for its length. Checking the box `Custom Storage` for the function signature allows Ghidra to use the stack for arguments and the return value. Here is an example:
+Attempts to analyze the binary dynamically failed because it is compiled for ARM. Even if emulated, it relies on other shared libraries and reading from the GPS device. Thus, Ghidra was used for further static analysis. It should be noted that, while ARM typically follows a calling convention that uses registers for arguments and return values, the Go calling convention uses the stack to pass these values between functions (https://dr-knz.net/go-calling-convention-x86-64.html). For example, for a function with two arguments and one return value, the first argument would be at `SP + 0x8`, the second at `SP + 0x10`, and the return value at `SP + 0x18`. Ghidra does not account for this calling convention, so function signatures were altered to assist with decompilation. Also in Go, strings are stored as a struct with an 8 byte pointer to the characters and an 8 byte integer for its length. Checking the box `Custom Storage` for the function signature allows Ghidra to use the stack for arguments and the return value. Here is an example:
 
 ![](images/task5_ghidra.png)
 
@@ -354,7 +354,7 @@ entrypoint: "/bin/sh -c 'cd / && /opt/router/router 2 9000 `hostname`'"
 
 ![](images/task7_handle_received_frame.png)
 
-In the included `hello.py`, the `msg` variable in the packet header was set to 0, which corresponds to a `msgtype` of 0 that results in `handle_received_HELLO` being called. It can be assumed that `handle_received_PEERS` will return a list of peers, so the `msgtype` in the header should be set to 1. `hello.py` is modified to make the initial connection using the HELLO message, and then another frame is sent with the `msg` being set to 1.
+In the included `hello.py`, the `msg` variable in the packet header was set to 0, which corresponds to a `msgtype` of 0 that results in `handle_received_HELLO` being called. It can be assumed that `handle_received_PEERS` will return a list of peers, so the `msgtype` in the header should be set to 1. `hello.py` is modified to make the initial connection using the `HELLO` packet, and then another frame is sent with the `msg` being set to 1.
 
 To fully understand the packet header format (needed for later tasks), the `zeros` variable in the `make_pkt` function must be understood. So far, it is known that the flags are 1 byte, the message type is 1 byte, and the `zeros` variable is 2 bytes. In the `router` binary, the `direct_pkt_from_hdr` function gives clues as to what these 2 bytes are:
 
@@ -366,7 +366,7 @@ Based on the error message string, it can be assumed that these two bytes are an
 | :----: | :----------: | :-----: | :-----: |
 | 1 byte |    1 byte    | 2 bytes | n bytes |
 
-To parse the response, the data format for nodes must be understood. Based on analysis of the `router` binary, both a HELLO request and response includes the data for a node in the packet content. The included code shows that the format is 2 bytes of unknown, 1 byte for the type, then 32 bytes for the hostname. The `peer_entry_t` type in Ghidra from the binary shows that the first 2 bytes are the address:
+To parse the response, the data format for nodes must be understood. Based on analysis of the `router` binary, both a `HELLO` request and response includes the data for a node in the packet content. The included code shows that the format is 2 bytes of unknown, 1 byte for the type, then 32 bytes for the hostname. The `peer_entry_t` type in Ghidra from the binary shows that the first 2 bytes are the address:
 
 ![](images/task7_peer_entry_t.png)
 
@@ -376,7 +376,7 @@ Therefore, the node data format is as follows:
 | :-----: | :-------: | :-------------------------------: |
 | 2 bytes |  1 byte   | 32 bytes (padded with null bytes) |
 
-The script will parse the PEERS response for this data format.
+The script will parse the `PEERS` response for this data format.
 
 The script must be run over the VPN. First, the configuration file is copied to the Wireguard directory:
 
@@ -396,7 +396,7 @@ Running the following command will confirm that the VPN is running:
 sudo wg show
 ```
 
-The output of this command shows that the only allowed IP on the VPN is `10.129.130.1`, so it can be assumed that this is the controller. Running the script with this IP address as the host returns five nodes:
+The output of this command shows that the only allowed IP address on the VPN is `10.129.130.1`, so it can be assumed that this is the controller. Running the script with this IP address as the host returns five nodes:
 
 ```
 Sending PEERS...
@@ -439,12 +439,151 @@ Once you've determined the buffer that needs to be sent, upload it here We will 
 
 ### Solution
 
+To assist with analysis, the included `docker-compose.yml` file was modified (see `task7_8_9/bundle/docker-compose_modified.yml`) to add a second drone to assist with testing broadcast messages. Additionally, the environment variable `RT_LOG_LEVEL_DEBUG` was set to `1` to enable all logging messages.
+
+If not using ARM64 architecture, QEMU must be used to emulate the architecture:
+
+```bash
+sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+```
+
+Next, the containers are started:
+
+```bash
+sudo docker-compose -f docker-compose_modified.yml up --build
+```
+
+The terminal will contain logs messages that will assist with analysis. The controller host for this environment is `127.0.0.1`.
+
+To send a command to a drone, it must first be determined how to send a packet to a drone through the controller. One function of interest in the `router` binary is `routed_pkt_from_hdr`:
+
+![](images/task8_routed_pkt_from_hdr.png)
+
+The error message string shows that the most significant bit in the packet flags (flag of `0x80` or `128`) corresponds to a routed flag. Additionally, examining the types in the binary, `routed_pkt_t` consists of the normal packet header followed by `routed_hdr_t`:
+
+![](images/task8_routed_pkt_t.png)
+
+`routed_hdr_t` consists of the previously discovered offset, a 1 byte path index, and the type `treeroute_hdr_t`:
+
+![](images/task8_routed_hdr_t.png)
+
+`treeroute_hdr_t` consists of a 4 byte path code, 1 byte address count, and a list of addresses (based on the node data format, the size of each address is likely 2 byes):
+
+![](images/task8_treeroute_hdr_t.png)
+
+Therefore, for a routed packet, it will contain the following format after the offset in the packet header:
+
+| Path Index | Path Code | Address Count |  Addresses   |
+| :--------: | :-------: | :-----------: | :----------: |
+|   1 byte   |  4 bytes  |    1 byte     | n \* 2 bytes |
+
+This format will be contained in the content section of the packet. The offset will be a non-zero integer pointing to the first byte after the routed packet header, which is the location of the actual packet contents.
+
+To understand how to send packets to one or multiple nodes using this data format, the function `treeroute_index_at_level` is analyzed:
+
+![](images/task8_treeroute_index_at_level.png)
+
+The list of addresses represents a structure of a tree. If the least significant bit of the path code is 0, the current tree level will be decremented. If the bit is 1, the current tree level will be incremented and the path index will be incremented. After every iteration, the path code is right shifted by one. For example, when sending a packet to a single drone, the routed packet header would be as follows:
+
+| Path Index |     Path Code     | Address Count |           Addresses           |
+| :--------: | :---------------: | :-----------: | :---------------------------: |
+|     1      | 3 (binary = `11`) |       3       | [terminal, controller, drone] |
+
+The root of the tree is the address of where the packet is originally sent from. This can be sent in the `HELLO` request. The controller address is determined from the `HELLO` response. The drone address is determined from the `PEERS` response from the previous task. The path index is set to `1` to point to the controller address because that is the next destination for the packet. The path code is set to a binary of `11`. This means that it will go down two levels.
+
+Using the above logic, a routed PEERS packet is sent to each drone discovered in the previous task:
+
+```
+Sending routed PEERS...
+Receiving routed PEERS...
+Flags = 129, Type = 1
+Hostname = power, Type = 4, Address = 0x3ac2
+Hostname = updater, Type = 4, Address = 0x3ac4
+Sending routed PEERS...
+Receiving routed PEERS...
+Flags = 129, Type = 1
+Hostname = power, Type = 4, Address = 0x3ac8
+Hostname = updater, Type = 4, Address = 0x3aca
+Sending routed PEERS...
+Receiving routed PEERS...
+Flags = 129, Type = 1
+Hostname = updater, Type = 4, Address = 0x3acc
+Hostname = power, Type = 4, Address = 0x3ace
+Sending routed PEERS...
+Receiving routed PEERS...
+Flags = 129, Type = 1
+Hostname = power, Type = 4, Address = 0x3ad0
+Hostname = updater, Type = 4, Address = 0x3ad2
+Sending routed PEERS...
+Receiving routed PEERS...
+Flags = 129, Type = 1
+Hostname = updater, Type = 4, Address = 0x3ad4
+Hostname = power, Type = 4, Address = 0x3ad6
+```
+
+Each drone is connected to a `power` and `updater` module. The goal is to send a single packet that broadcasts a command to all `power` modules. The routing tree would be as follows:
+
+![](images/task8_tree.png)
+
+For example, if there were two drones, the routed packet header would be as follows:
+
+| Path Index |          Path Code          | Address Count |                         Addresses                          |
+| :--------: | :-------------------------: | :-----------: | :--------------------------------------------------------: |
+|     1      | binary = `"0011" * 2 + "1"` |       6       | [terminal, controller, drone_0, power_0, drone_1, power_1] |
+
+The path index is again set to `1` to point to the controller address because that is the next destination for the packet. The least significant bit of the path code is `1` because it must first go down one level to the controller, which is needed to contact every `power` module. Then, for each drone, the binary `0011` is appended to the path code. This means it will go down two levels - one to the drone, then another to the `power` module. It will then go up two levels back to the controller so that the next drone and `power` module can be contacted.
+
+Next, the format for a `poweroff` command packet must be determined. From the `Dockerfile`, the drone uses `supervisord.conf` to start its services:
+
+```Dockerfile
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor.d/supervisord.conf"]
+```
+
+This file contains the command the drone runs to start the `power` module:
+
+```conf
+command=/bin/sh -c "/opt/netsvc/netsvc 127.0.0.1 9000 power /opt/power/libpower.so api 200"
+```
+
+`/opt/netsvc/netsvc` seems to be running the network backend for the `power` module. It is a symbolic link to the binary located at `/var/opt/updater/modules/netsvc/1.0/netsvc`. The binary, which contains debugging information, is loaded into Ghidra. The function `dispatch_packet` is of interest:
+
+![](images/task8_dispatch_packet1.png)
+
+Based on the error message string, if `iVar1` equals `0`, then a `HELLO` packet was received. Therefore, `iVar1` must be the message type in the packet header. The rest of the function shows that `3` corresponds to an `OPEN` command, `5` to a `CLOSE` command, and `4` to a `DATA` command:
+
+![](images/task8_dispatch_packet2.png)
+
+Since the task asks that a single packet is sent for the `poweroff` command, it can be assumed that an `OPEN` command is not needed first. It is assumed that a `DATA` command (message type of `4`) with the string `poweroff` in the packet content will issue a `poweroff` command.
+
+A `poweroff` command packet is constructed with a routing header that broadcasts to all five discovered `power` modules:
+
+```
+Sending poweroff command...
+Receiving poweroff command response..
+Flags = 129, Type = 5
+Content = b'dActive Flight Monitor indicates drone is in-flight.  Will not issue power command. (try: forced-...)'
+Receiving poweroff command response..
+Flags = 129, Type = 5
+Content = b'dActive Flight Monitor indicates drone is in-flight.  Will not issue power command. (try: forced-...)'
+Receiving poweroff command response..
+Flags = 129, Type = 5
+Content = b'dActive Flight Monitor indicates drone is in-flight.  Will not issue power command. (try: forced-...)'
+Receiving poweroff command response..
+Flags = 129, Type = 5
+Content = b'dActive Flight Monitor indicates drone is in-flight.  Will not issue power command. (try: forced-...)'
+Receiving poweroff command response..
+Flags = 129, Type = 5
+Content = b'dActive Flight Monitor indicates drone is in-flight.  Will not issue power command. (try: forced-...)'
+```
+
+As expected, the command fails because the drones are in flight. The packet bytes are written to a file.
+
 ### Answers
 
 Upload the packet (not frame) contents we should send when we're ready to disable the drones. (It should not have the 2 byte length prefix)
 
 ```
-
+See task7_8_9/poweroff_pkt
 ```
 
 ## Task 9 - Rescue & Escape (Part 2) - (Reverse Engineering, Cryptography, Vulnerability Analysis) (2500 points)
