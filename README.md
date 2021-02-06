@@ -1,5 +1,7 @@
 # NSA Codebreaker Challenge 2020 Solutions
 
+Final task (task 9) solution not included. See https://github.com/luker983/nsa-codebreaker-2020/tree/master/phase2/task9.
+
 ## Task 1 - What's On the Drive? - (Computer Forensics, Command Line, Encryption Tools) (10 points)
 
 ### Description
@@ -123,7 +125,7 @@ sqlite> SELECT passwords.username,passwords.pwd FROM passwords,services WHERE pa
 Keanna_Otters_0121|<~<+TKS94_OLDIG4Z1,Ud?1,T~>
 ```
 
-Googling `<~` and `~>` reveals that this signifies Base85 encoded text. CyberChef is used to decode the password from Base85:
+Researching the strings `<~` and `~>` reveals that this signifies Base85 encoded text. CyberChef is used to decode the password from Base85:
 
 ```
 TealKeanna09251025
@@ -196,7 +198,7 @@ main.setup_cipher
 !!!   EXPECTED TO FIND NMEA $GNGGA HEADER   !!!
 ```
 
-The logs must be encrypted using AES CBC, the IV must be derived from a latitude, and the key from a longitude. Researching `NMEA $GNGGA` results in the following document: http://navspark.mybigcommerce.com/content/NMEA_Format_v0.1.pdf. The drone must receive data from a GPS device in the following format, where `llll.lll` is the latitude and `yyyyy.yyy` is the longitude:
+The logs must be encrypted using AES CBC, the IV must be derived from a latitude, and the key from a longitude. Researching the string `NMEA $GNGGA` results in the following document: http://navspark.mybigcommerce.com/content/NMEA_Format_v0.1.pdf. The drone must receive data from a GPS device in the following format, where `llll.lll` is the latitude and `yyyyy.yyy` is the longitude:
 
 ```
 $GNGGA,hhmmss.ss,llll.lll,a,yyyyy.yyy,a,x,uu,v.v,w.w,M,x.x,M,,zzzz*hh<CR><LF>
@@ -344,7 +346,7 @@ With proof the journalist is alive and held inside the compound, the team will m
 
 ### Solution
 
-To determine the command that must be sent to the controller, the binary the controller is running must be reverse engineered. From `docker-compose.yml`, the contoller seems to be running the `router` binary:
+To determine the command that must be sent to the controller, the binary the controller is running must be reverse engineered. From `docker-compose.yml`, the controller seems to be running the `router` binary:
 
 ```yaml
 entrypoint: "/bin/sh -c 'cd / && /opt/router/router 2 9000 `hostname`'"
@@ -597,6 +599,8 @@ Find a vulnerability in the updater module that allows you to update the flightm
 Additional Notes: This will require a better understanding of the netsvc module than you needed for the power command. The update process looks like it requires a long running 'session' and the netsvc may have some protection mechanisms to guard against bruteforce attempts which you will need to abide by.
 
 ### Solution
+
+See https://github.com/luker983/nsa-codebreaker-2020/tree/master/phase2/task9.
 
 ### Answers
 
