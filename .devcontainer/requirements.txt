@@ -1,0 +1,4 @@
+black
+pycrypto
+pylint
+numpy
